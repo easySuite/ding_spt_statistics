@@ -4,3 +4,6 @@ core = 7.x
 package = Ding!
 version = 7.x-1.0
 project = ding_spt_statistics
+dependencies[] = features
+features[features_api][] = api:2
+features[user_permission][] = view spt statistics
