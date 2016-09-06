@@ -44,12 +44,14 @@ function ding_spt_statistics_permission() {
  * Count click and redirect to the resource.
  */
 function ding_spt_statistics_redirect() {
+  $params = drupal_get_query_parameters();
+
   // Register statistical data.
-  $hostname = !empty($_GET['hostname']) ? $_GET['hostname'] : FALSE;
+  $hostname = !empty($params['hostname']) ? $params['hostname'] : FALSE;
   ding_spt_statistics_register($hostname);
 
   // Redirect to the external resource.
-  $path = !empty($_GET['path']) ? $_GET['path'] : FALSE;
+  $path = !empty($params['path']) ? $params['path'] : '';
   drupal_goto($path);
 }
 
@@ -63,33 +65,18 @@ function ding_spt_statistics_register($hostname) {
   if (!$hostname) {
     return;
   }
-  $result = db_select('ding_spt_statistics', 'dss')
-    ->fields('dss', array('hid', 'count'))
-    ->condition('hostname', $hostname)
-    ->execute()
-    ->fetchAssoc()
-  ;
 
-  // Update table statistics with new values.
-  if (!$result) {
-    $result['hid'] = db_insert('ding_spt_statistics')
-      ->fields(array(
-        'hostname' => $hostname,
-        'count' => 1,
-      ))
-      ->execute();
-  }
-  else {
-    db_update('ding_spt_statistics')
-      ->expression('count', 'count + 1')
-      ->condition('hostname', $hostname)
-      ->execute();
-  }
+  // Insert values in statistics, if there is duplicate then update counter.
+  $id = db_query('INSERT INTO ding_spt_statistics (hostname, count) 
+    VALUES (:hostname, 1) ON DUPLICATE KEY UPDATE count = count + 1',
+    array(':hostname' => $hostname),
+    array('return' => Database::RETURN_INSERT_ID)
+  );
 
   // Insert new record to the data table.
   db_insert('ding_spt_hits')
     ->fields(array(
-      'hid' => $result['hid'],
+      'hid' => $id,
       'accessed' => REQUEST_TIME,
     ))
     ->execute();
@@ -102,17 +89,31 @@ function ding_spt_statistics_register($hostname) {
  *   Themed table.
  */
 function ding_spt_statistics_display() {
+  $header = array(
+    array('data' => t('Hostname'), 'field' => 'hostname', 'sort' => 'ASC'),
+    array('data' => t('Day'), 'field' => 'day'),
+    array('data' => t('Week'), 'field' => 'week'),
+    array('data' => t('Month'), 'field' => 'month'),
+    array('data' => t('3 Months'), 'field' => '3months'),
+    array('data' => t('All'), 'field' => 'count'),
+  );
+
   // Get data from db.
-  $query = db_select('ding_spt_statistics', 's');
+  $query = db_select('ding_spt_statistics', 's')
+    ->extend('PagerDefault')
+    ->extend('TableSort')
+    ->orderByHeader($header)
+    ->groupBy('s.hid')
+    ->limit(10);
+
   $query->leftJoin('ding_spt_hits', 'h', 's.hid = h.hid');
   $query->fields('s', array('hostname', 'count'));
 
-  $query->addExpression('SUM(CASE WHEN unix_timestamp(now()) - h.accessed < 86400 THEN 1 ELSE 0 END)', 'day');
-  $query->addExpression('SUM(CASE WHEN unix_timestamp(now()) - h.accessed < 7*86400 THEN 1 ELSE 0 END)', 'week');
-  $query->addExpression('SUM(CASE WHEN unix_timestamp(now()) - h.accessed < 30*86400 THEN 1 ELSE 0 END)', 'month');
-  $query->addExpression('SUM(CASE WHEN unix_timestamp(now()) - h.accessed < 90*86400 THEN 1 ELSE 0 END)', '3months');
+  $query->addExpression('SUM(CASE WHEN UNIX_TIMESTAMP(NOW()) - h.accessed < 86400 THEN 1 ELSE 0 END)', 'day');
+  $query->addExpression('SUM(CASE WHEN UNIX_TIMESTAMP(NOW()) - h.accessed < 7 * 86400 THEN 1 ELSE 0 END)', 'week');
+  $query->addExpression('SUM(CASE WHEN UNIX_TIMESTAMP(NOW()) - h.accessed < 30 * 86400 THEN 1 ELSE 0 END)', 'month');
+  $query->addExpression('SUM(CASE WHEN UNIX_TIMESTAMP(NOW()) - h.accessed < 90 * 86400 THEN 1 ELSE 0 END)', '3months');
 
-  $query->groupBy('s.hid');
   $result = $query->execute()->fetchAllAssoc('hostname');
 
   // Build markup for the table.
@@ -128,9 +129,11 @@ function ding_spt_statistics_display() {
     );
   }
 
-  $header = array(t('Hostname'), t('Day'), t('Week'), t('Month'), t('3 Months'), t('All'));
 
-  return theme('table', array('header' => $header, 'rows' => $rows));
+  $output = theme('table', array('header' => $header, 'rows' => $rows));
+  $output .= theme('pager');
+
+  return $output;
 }
 
 /**

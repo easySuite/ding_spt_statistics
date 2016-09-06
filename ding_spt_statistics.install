@@ -35,6 +35,9 @@ function ding_spt_statistics_schema() {
       ),
     ),
     'primary key' => array('hid'),
+    'unique keys' => array(
+      'hostname' => array('hostname'),
+    ),
   );
 
   $schema['ding_spt_hits'] = array(
