@@ -17,10 +17,10 @@ function ding_spt_statistics_menu() {
     'access arguments' => array('access content'),
     'page callback' => 'ding_spt_statistics_redirect',
   );
-  $items['spt/statistics'] = array(
+  $items['admin/reports/spt-statistics'] = array(
     'title' => 'Ding SPT statistics',
     'description' => 'Count click and redirect to the external resource',
-    'type' => MENU_CALLBACK,
+    'type' => MENU_NORMAL_ITEM,
     'access arguments' => array('view spt statistics'),
     'page callback' => 'ding_spt_statistics_display',
   );
