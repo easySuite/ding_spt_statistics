@@ -130,7 +130,13 @@ function ding_spt_statistics_display() {
   }
 
 
-  $output = theme('table', array('header' => $header, 'rows' => $rows));
+  $output = theme('table',
+    array(
+      'header' => $header,
+      'rows' => $rows,
+      'empty' => t("No statistics data collected at the moment."),
+    )
+  );
   $output .= theme('pager');
 
   return $output;
